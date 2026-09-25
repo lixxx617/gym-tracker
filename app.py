@@ -3,15 +3,77 @@ import pandas as pd
 import streamlit as st
 
 # ==========================================
-# 1. 資料庫與全域設定
+# 1. 頁面基本設定與 Custom CSS 美化
 # ==========================================
 st.set_page_config(
-    page_title="健身紀錄 App",
-    page_icon="🏋️",
+    page_title="ProFit 健身隨身助手",
+    page_icon="🏋️‍♂️",
     layout="centered"
 )
 
-# 各肌群對應動作清單
+# 套用客製化 CSS 樣式
+st.markdown("""
+    <style>
+    /* 全域背景與字型優化 */
+    .stApp {
+        background-color: #f8f9fa;
+    }
+    
+    /* 標題與 Header 美化 */
+    h1 {
+        color: #1e293b;
+        font-weight: 800 !important;
+        text-align: center;
+        padding-bottom: 0.5rem;
+    }
+    
+    /* 卡片式容器樣式 */
+    .css-card {
+        background-color: #ffffff;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        margin-bottom: 20px;
+        border: 1px solid #e2e8f0;
+    }
+    
+    /* 按鈕樣式強化 */
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        font-weight: 600;
+        background: linear-gradient(90deg, #2563eb, #1d4ed8);
+        border: none;
+        padding: 0.6rem 1rem;
+        transition: all 0.2s ease-in-out;
+    }
+    
+    /* Tabs 標籤頁美化 */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #e2e8f0;
+        padding: 6px;
+        border-radius: 10px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        height: 42px;
+        border-radius: 6px;
+        font-weight: 600;
+        color: #475569;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background-color: #ffffff !important;
+        color: #2563eb !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 2. 資料庫與全域設定
+# ==========================================
 EXERCISE_GROUPS = {
     "胸部 Chest": ["機關胸推", "槓鈴臥推", "啞鈴臥推", "上斜啞鈴臥推", "夾胸機", "雙槓體撐"],
     "背部 Back": ["滑輪下拉", "座姿滑輪划船", "槓鈴划船", "單臂啞鈴划船", "引體向上", "反向飛鳥/後三角機"],
@@ -21,7 +83,6 @@ EXERCISE_GROUPS = {
     "核心 Core": ["機械捲腹", "懸垂抬腿"]
 }
 
-# 動作教學內容（包含專業教學連結）
 TUTORIALS = {
     "機關胸推": {
         "target": "胸大肌、三頭肌、前三角肌",
@@ -211,36 +272,55 @@ TUTORIALS = {
     }
 }
 
-# 初始化 Session State
 if "workout_logs" not in st.session_state:
     st.session_state["workout_logs"] = []
 
 # ==========================================
-# 2. 頁面標題與分頁標籤
+# 3. 頂部 App 標題與數據摘要儀表板
 # ==========================================
-st.title("🏋️ 健身紀錄")
+st.markdown("<h1>🏋️‍♂️ ProFit 健身隨身助手</h1>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4 = st.tabs(["今日訓練", "歷史紀錄", "進度圖表", "📚 動作教學"])
+# 頂部快速數據儀表板
+logs_count = len(st.session_state["workout_logs"])
+unique_exercises = len(set(log["exercise"] for log in st.session_state["workout_logs"])) if logs_count > 0 else 0
+
+m1, m2, m3 = st.columns(3)
+m1.metric("累積紀錄組數", f"{logs_count} 組")
+m2.metric("已解鎖動作", f"{unique_exercises} 種")
+m3.metric("今日狀態", "🔥 訓練中" if logs_count > 0 else "💪 準備開始")
+
+st.write("")
 
 # ==========================================
+# 4. 主要分頁區塊
+# ==========================================
+tab1, tab2, tab3, tab4 = st.tabs(["📝 今日訓練", "📜 歷史紀錄", "📊 進度圖表", "📚 動作教學"])
+
+# ------------------------------------------
 # Tab 1: 今日訓練
-# ==========================================
+# ------------------------------------------
 with tab1:
+    st.markdown('<div class="css-card">', unsafe_allow_html=True)
+    st.subheader("新增訓練組數")
+    
     today_date = st.date_input("日期", datetime.date.today())
     
-    selected_group = st.selectbox("肌群", list(EXERCISE_GROUPS.keys()))
-    exercises_in_group = EXERCISE_GROUPS[selected_group]
-    selected_exercise = st.selectbox("動作", exercises_in_group)
+    col_g, col_e = st.columns(2)
+    with col_g:
+        selected_group = st.selectbox("肌群部位", list(EXERCISE_GROUPS.keys()))
+    with col_e:
+        exercises_in_group = EXERCISE_GROUPS[selected_group]
+        selected_exercise = st.selectbox("訓練動作", exercises_in_group)
     
     col1, col2 = st.columns(2)
     with col1:
-        weight = st.number_input("重量 (kg)", min_value=0.0, step=2.5)
+        weight = st.number_input("負重 (kg)", min_value=0.0, step=2.5)
     with col2:
-        reps = st.number_input("次數", min_value=1, step=1)
+        reps = st.number_input("完成次數", min_value=1, step=1)
         
-    notes = st.text_input("備註 (可選)", "")
+    notes = st.text_input("心得 / 筆記 (可選)", "", placeholder="例如：最後一組差點力竭、握距調寬一點")
     
-    if st.button("新增紀錄", type="primary"):
+    if st.button("➕ 寫入紀錄", type="primary"):
         new_log = {
             "date": str(today_date),
             "group": selected_group,
@@ -250,61 +330,76 @@ with tab1:
             "notes": notes
         }
         st.session_state["workout_logs"].append(new_log)
-        st.success(f"已新增：{selected_exercise} - {weight} kg x {reps} 次")
+        st.toast(f"✅ 已成功紀錄：{selected_exercise} {weight}kg x {reps}次", icon="💪")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# ==========================================
+# ------------------------------------------
 # Tab 2: 歷史紀錄
-# ==========================================
+# ------------------------------------------
 with tab2:
-    st.subheader("歷史記錄清單")
+    st.subheader("📜 歷史訓練清單")
     if st.session_state["workout_logs"]:
         df = pd.DataFrame(st.session_state["workout_logs"])
-        st.dataframe(df, use_container_width=True)
+        # 重命名欄位呈現更美觀
+        df_display = df.rename(columns={
+            "date": "日期",
+            "group": "肌群",
+            "exercise": "動作",
+            "weight": "重量(kg)",
+            "reps": "次數",
+            "notes": "備註"
+        })
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
-        st.info("目前尚無訓練紀錄，請在「今日訓練」標籤頁中新增！")
+        st.info("💡 目前尚無訓練紀錄，快去「今日訓練」新增第一組吧！")
 
-# ==========================================
+# ------------------------------------------
 # Tab 3: 進度圖表
-# ==========================================
+# ------------------------------------------
 with tab3:
-    st.subheader("訓練趨勢")
+    st.subheader("📈 重量突破分析")
     if st.session_state["workout_logs"]:
         df = pd.DataFrame(st.session_state["workout_logs"])
-        chart_exercise = st.selectbox("選擇要檢視的動作", df["exercise"].unique())
+        chart_exercise = st.selectbox("請選擇要分析的動作", df["exercise"].unique())
         filtered_df = df[df["exercise"] == chart_exercise]
         
         if not filtered_df.empty:
             st.line_chart(filtered_df.set_index("date")["weight"])
         else:
-            st.warning("該動作無歷史數據")
+            st.warning("⚠️ 該動作目前尚無數據可供畫圖")
     else:
-        st.info("尚無數據可提供分析")
+        st.info("💡 尚未累積足夠數據，完成訓練後即可檢視趨勢圖！")
 
-# ==========================================
+# ------------------------------------------
 # Tab 4: 動作教學
-# ==========================================
+# ------------------------------------------
 with tab4:
-    st.subheader("動作教學庫")
+    st.subheader("📚 專業健身指南")
     
-    t_group = st.selectbox("選擇肌群分類", list(EXERCISE_GROUPS.keys()), key="t_group")
-    t_exercise = st.selectbox("選擇動作", EXERCISE_GROUPS[t_group], key="t_exercise")
+    col_tg, col_te = st.columns(2)
+    with col_tg:
+        t_group = st.selectbox("選擇肌群", list(EXERCISE_GROUPS.keys()), key="t_group")
+    with col_te:
+        t_exercise = st.selectbox("選擇動作", EXERCISE_GROUPS[t_group], key="t_exercise")
     
     if t_exercise in TUTORIALS:
         info = TUTORIALS[t_exercise]
         
-        st.markdown(f"### {t_exercise}")
-        st.write(f"**目標肌群：** {info['target']}")
+        st.markdown('<div class="css-card">', unsafe_allow_html=True)
+        st.markdown(f"### 🏋️ {t_exercise}")
+        st.markdown(f"**🎯 目標肌群：** `{info['target']}`")
         
-        st.write("**動作步驟：**")
+        st.markdown("#### 🔹 動作要領")
         for idx, step in enumerate(info["steps"], 1):
-            st.write(f"{idx}. {step}")
+            st.write(f"**{idx}.** {step}")
             
-        st.write("**常見錯誤：**")
+        st.markdown("#### ⚠️ 常見錯誤")
         for mistake in info["mistakes"]:
-            st.write(f"- {mistake}")
+            st.write(f"• {mistake}")
             
         st.markdown("---")
-        # 顯示專業教學連結按鈕
         st.link_button(f"🎥 觀看【{t_exercise}】完整影音教學", info["link"], use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     else:
-        st.info("該動作教學準備中...")
+        st.info("🚧 該動作教學準備中...")
