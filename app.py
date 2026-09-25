@@ -37,6 +37,17 @@ st.markdown("""
         border: 1px solid #e2e8f0;
     }
     
+    /* 完成卡片特別樣式 */
+    .finish-card {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 20px;
+        box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);
+    }
+    
     /* 按鈕樣式強化 */
     .stButton>button {
         width: 100%;
@@ -275,6 +286,9 @@ TUTORIALS = {
 if "workout_logs" not in st.session_state:
     st.session_state["workout_logs"] = []
 
+if "finished_dates" not in st.session_state:
+    st.session_state["finished_dates"] = set()
+
 # ==========================================
 # 3. 頂部 App 標題與數據摘要儀表板
 # ==========================================
@@ -287,7 +301,7 @@ unique_exercises = len(set(log["exercise"] for log in st.session_state["workout_
 m1, m2, m3 = st.columns(3)
 m1.metric("累積紀錄組數", f"{logs_count} 組")
 m2.metric("已解鎖動作", f"{unique_exercises} 種")
-m3.metric("今日狀態", "🔥 訓練中" if logs_count > 0 else "💪 準備開始")
+m3.metric("完成天數", f"{len(st.session_state['finished_dates'])} 天")
 
 st.write("")
 
@@ -300,10 +314,41 @@ tab1, tab2, tab3, tab4 = st.tabs(["📝 今日訓練", "📜 歷史紀錄", "�
 # Tab 1: 今日訓練
 # ------------------------------------------
 with tab1:
-    st.markdown('<div class="css-card">', unsafe_allow_html=True)
-    st.subheader("新增訓練組數")
+    today_date = st.date_input("選擇訓練日期", datetime.date.today())
+    date_str = str(today_date)
     
-    today_date = st.date_input("日期", datetime.date.today())
+    # 篩選出選取日期的紀錄
+    today_logs = [log for log in st.session_state["workout_logs"] if log["date"] == date_str]
+    
+    # 檢查該日期是否已經標記完成
+    is_finished = date_str in st.session_state["finished_dates"]
+    
+    # 若今日已完成，顯示結算榮譽卡片
+    if is_finished:
+        total_sets = len(today_logs)
+        total_volume = sum(log["weight"] * log["reps"] for log in today_logs)
+        exercises_done = list(set(log["exercise"] for log in today_logs))
+        
+        st.markdown(f"""
+            <div class="finish-card">
+                <h2>🎉 {date_str} 訓練圓滿完成！</h2>
+                <p style="font-size: 1.1rem; margin-top: 10px;">今天表現太棒了，好好補充蛋白質與休息！</p>
+                <hr style="border-color: rgba(255,255,255,0.3);">
+                <div style="display: flex; justify-content: space-around; margin-top: 15px;">
+                    <div><strong>總組數</strong><br><span style="font-size: 1.5rem;">{total_sets} 組</span></div>
+                    <div><strong>總訓練量 (Volume)</strong><br><span style="font-size: 1.5rem;">{total_volume:,.0f} kg</span></div>
+                    <div><strong>完成動作</strong><br><span style="font-size: 1.5rem;">{len(exercises_done)} 個</span></div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("🔄 解除完成狀態（繼續編輯今日訓練）"):
+            st.session_state["finished_dates"].remove(date_str)
+            st.rerun()
+
+    # 新增組數的卡片區塊
+    st.markdown('<div class="css-card">', unsafe_allow_html=True)
+    st.subheader("➕ 新增訓練組數")
     
     col_g, col_e = st.columns(2)
     with col_g:
@@ -320,9 +365,9 @@ with tab1:
         
     notes = st.text_input("心得 / 筆記 (可選)", "", placeholder="例如：最後一組差點力竭、握距調寬一點")
     
-    if st.button("➕ 寫入紀錄", type="primary"):
+    if st.button("寫入紀錄", type="primary"):
         new_log = {
-            "date": str(today_date),
+            "date": date_str,
             "group": selected_group,
             "exercise": selected_exercise,
             "weight": weight,
@@ -331,6 +376,28 @@ with tab1:
         }
         st.session_state["workout_logs"].append(new_log)
         st.toast(f"✅ 已成功紀錄：{selected_exercise} {weight}kg x {reps}次", icon="💪")
+        st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # 顯示當天即時訓練小結與「完成訓練」按鈕
+    st.markdown('<div class="css-card">', unsafe_allow_html=True)
+    st.subheader(f"📋 {date_str} 當日已記錄組數 ({len(today_logs)} 組)")
+    
+    if today_logs:
+        df_today = pd.DataFrame(today_logs)[["group", "exercise", "weight", "reps", "notes"]]
+        df_today.columns = ["肌群", "動作", "重量(kg)", "次數", "備註"]
+        st.dataframe(df_today, use_container_width=True, hide_index=True)
+        
+        st.markdown("---")
+        # 訓練完成按鈕
+        if not is_finished:
+            if st.button("🏆 完成今日訓練（結算成果）"):
+                st.session_state["finished_dates"].add(date_str)
+                st.balloons()  # 慶祝彩色氣球動畫
+                st.rerun()
+    else:
+        st.info("今日尚未新增任何訓練組數，開始第一組吧！")
     
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -341,7 +408,6 @@ with tab2:
     st.subheader("📜 歷史訓練清單")
     if st.session_state["workout_logs"]:
         df = pd.DataFrame(st.session_state["workout_logs"])
-        # 重命名欄位呈現更美觀
         df_display = df.rename(columns={
             "date": "日期",
             "group": "肌群",
