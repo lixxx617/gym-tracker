@@ -1,6 +1,35 @@
 import datetime
+import json
+import os
 import pandas as pd
 import streamlit as st
+
+# ==========================================
+# 0. 資料持久化（記憶功能）邏輯
+# ==========================================
+DATA_FILE = "workout_data.json"
+
+def load_data():
+    """讀取本地端 JSON 檔案，若不存在則初始化預設值"""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                logs = data.get("workout_logs", [])
+                finished_dates = set(data.get("finished_dates", []))
+                return logs, finished_dates
+        except Exception:
+            return [], set()
+    return [], set()
+
+def save_data():
+    """將目前的 Session State 儲存至本地端 JSON 檔案"""
+    data = {
+        "workout_logs": st.session_state["workout_logs"],
+        "finished_dates": list(st.session_state["finished_dates"])
+    }
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
 # ==========================================
 # 1. 頁面基本設定與 Custom CSS 美化
@@ -283,11 +312,11 @@ TUTORIALS = {
     }
 }
 
-if "workout_logs" not in st.session_state:
-    st.session_state["workout_logs"] = []
-
-if "finished_dates" not in st.session_state:
-    st.session_state["finished_dates"] = set()
+# 啟動時從檔案讀取舊紀錄
+if "workout_logs" not in st.session_state or "finished_dates" not in st.session_state:
+    logs, finished_dates = load_data()
+    st.session_state["workout_logs"] = logs
+    st.session_state["finished_dates"] = finished_dates
 
 # ==========================================
 # 3. 頂部 App 標題與數據摘要儀表板
@@ -319,8 +348,6 @@ with tab1:
     
     # 篩選出選取日期的紀錄
     today_logs = [log for log in st.session_state["workout_logs"] if log["date"] == date_str]
-    
-    # 檢查該日期是否已經標記完成
     is_finished = date_str in st.session_state["finished_dates"]
     
     # 若今日已完成，顯示結算榮譽卡片
@@ -344,6 +371,7 @@ with tab1:
         
         if st.button("🔄 解除完成狀態（繼續編輯今日訓練）"):
             st.session_state["finished_dates"].remove(date_str)
+            save_data()  # 存檔
             st.rerun()
 
     # 新增組數的卡片區塊
@@ -375,7 +403,8 @@ with tab1:
             "notes": notes
         }
         st.session_state["workout_logs"].append(new_log)
-        st.toast(f"✅ 已成功紀錄：{selected_exercise} {weight}kg x {reps}次", icon="💪")
+        save_data()  # 自動儲存至 workout_data.json
+        st.toast(f"✅ 已成功紀錄：{selected_exercise} {weight}kg x {reps}次（已儲存）", icon="💪")
         st.rerun()
     
     st.markdown('</div>', unsafe_allow_html=True)
@@ -390,11 +419,11 @@ with tab1:
         st.dataframe(df_today, use_container_width=True, hide_index=True)
         
         st.markdown("---")
-        # 訓練完成按鈕
         if not is_finished:
             if st.button("🏆 完成今日訓練（結算成果）"):
                 st.session_state["finished_dates"].add(date_str)
-                st.balloons()  # 慶祝彩色氣球動畫
+                save_data()  # 自動儲存至 workout_data.json
+                st.balloons()
                 st.rerun()
     else:
         st.info("今日尚未新增任何訓練組數，開始第一組吧！")
@@ -402,7 +431,7 @@ with tab1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# Tab 2: 歷史紀錄
+# Tab 2: 歷史紀錄與清除資料
 # ------------------------------------------
 with tab2:
     st.subheader("📜 歷史訓練清單")
@@ -417,6 +446,16 @@ with tab2:
             "notes": "備註"
         })
         st.dataframe(df_display, use_container_width=True, hide_index=True)
+        
+        st.markdown("---")
+        # 清除歷史紀錄功能
+        with st.expander("⚠️ 危險區域：清除歷史紀錄"):
+            if st.button("🗑️ 確定刪除所有訓練資料"):
+                st.session_state["workout_logs"] = []
+                st.session_state["finished_dates"] = set()
+                save_data()
+                st.success("所有訓練資料已清空！")
+                st.rerun()
     else:
         st.info("💡 目前尚無訓練紀錄，快去「今日訓練」新增第一組吧！")
 
