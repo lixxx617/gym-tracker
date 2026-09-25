@@ -17,16 +17,18 @@ def load_data():
                 data = json.load(f)
                 logs = data.get("workout_logs", [])
                 finished_dates = set(data.get("finished_dates", []))
-                return logs, finished_dates
+                body_logs = data.get("body_logs", [])
+                return logs, finished_dates, body_logs
         except Exception:
-            return [], set()
-    return [], set()
+            return [], set(), []
+    return [], set(), []
 
 def save_data():
     """將目前的 Session State 儲存至本地端 JSON 檔案"""
     data = {
         "workout_logs": st.session_state["workout_logs"],
-        "finished_dates": list(st.session_state["finished_dates"])
+        "finished_dates": list(st.session_state["finished_dates"]),
+        "body_logs": st.session_state["body_logs"]
     }
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
@@ -35,7 +37,7 @@ def save_data():
 # 1. 頁面基本設定與 Custom CSS 美化
 # ==========================================
 st.set_page_config(
-    page_title="ProFit 健身隨身助手",
+    page_title="ProFit 健身與身體管理助手",
     page_icon="🏋️‍♂️",
     layout="centered"
 )
@@ -313,31 +315,38 @@ TUTORIALS = {
 }
 
 # 啟動時從檔案讀取舊紀錄
-if "workout_logs" not in st.session_state or "finished_dates" not in st.session_state:
-    logs, finished_dates = load_data()
+if "workout_logs" not in st.session_state or "finished_dates" not in st.session_state or "body_logs" not in st.session_state:
+    logs, finished_dates, body_logs = load_data()
     st.session_state["workout_logs"] = logs
     st.session_state["finished_dates"] = finished_dates
+    st.session_state["body_logs"] = body_logs
 
 # ==========================================
 # 3. 頂部 App 標題與數據摘要儀表板
 # ==========================================
-st.markdown("<h1>🏋️‍♂️ ProFit 健身隨身助手</h1>", unsafe_allow_html=True)
+st.markdown("<h1>🏋️‍♂️ ProFit 健身與身體管理助手</h1>", unsafe_allow_html=True)
 
 # 頂部快速數據儀表板
 logs_count = len(st.session_state["workout_logs"])
 unique_exercises = len(set(log["exercise"] for log in st.session_state["workout_logs"])) if logs_count > 0 else 0
 
-m1, m2, m3 = st.columns(3)
+# 取得最新體重數據
+latest_weight = "未紀錄"
+if st.session_state["body_logs"]:
+    latest_weight = f"{st.session_state['body_logs'][-1]['weight']} kg"
+
+m1, m2, m3, m4 = st.columns(4)
 m1.metric("累積紀錄組數", f"{logs_count} 組")
 m2.metric("已解鎖動作", f"{unique_exercises} 種")
 m3.metric("完成天數", f"{len(st.session_state['finished_dates'])} 天")
+m4.metric("最新體重", latest_weight)
 
 st.write("")
 
 # ==========================================
 # 4. 主要分頁區塊
 # ==========================================
-tab1, tab2, tab3, tab4 = st.tabs(["📝 今日訓練", "📜 歷史紀錄", "📊 進度圖表", "📚 動作教學"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📝 今日訓練", "📈 身體管理", "📜 歷史紀錄", "📊 進度圖表", "📚 動作教學"])
 
 # ------------------------------------------
 # Tab 1: 今日訓練
@@ -371,7 +380,7 @@ with tab1:
         
         if st.button("🔄 解除完成狀態（繼續編輯今日訓練）"):
             st.session_state["finished_dates"].remove(date_str)
-            save_data()  # 存檔
+            save_data()
             st.rerun()
 
     # 新增組數的卡片區塊
@@ -403,7 +412,7 @@ with tab1:
             "notes": notes
         }
         st.session_state["workout_logs"].append(new_log)
-        save_data()  # 自動儲存至 workout_data.json
+        save_data()
         st.toast(f"✅ 已成功紀錄：{selected_exercise} {weight}kg x {reps}次（已儲存）", icon="💪")
         st.rerun()
     
@@ -422,7 +431,7 @@ with tab1:
         if not is_finished:
             if st.button("🏆 完成今日訓練（結算成果）"):
                 st.session_state["finished_dates"].add(date_str)
-                save_data()  # 自動儲存至 workout_data.json
+                save_data()
                 st.balloons()
                 st.rerun()
     else:
@@ -431,9 +440,96 @@ with tab1:
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# Tab 2: 歷史紀錄與清除資料
+# Tab 2: 身體管理（新增功能）
 # ------------------------------------------
 with tab2:
+    st.subheader("🧘 身體指標量測與紀錄")
+    
+    st.markdown('<div class="css-card">', unsafe_allow_html=True)
+    b_date = st.date_input("紀錄日期", datetime.date.today(), key="body_date")
+    
+    c_w, c_bf = st.columns(2)
+    with c_w:
+        body_weight = st.number_input("體重 (kg)", min_value=0.0, max_value=250.0, value=70.0, step=0.1)
+    with c_bf:
+        body_fat = st.number_input("體體脂率 (%) (可選)", min_value=0.0, max_value=60.0, value=0.0, step=0.1)
+        
+    c_m, c_waist = st.columns(2)
+    with c_m:
+        muscle_mass = st.number_input("肌肉量 (kg) (可選)", min_value=0.0, max_value=150.0, value=0.0, step=0.1)
+    with c_waist:
+        waistline = st.number_input("腰圍 (cm) (可選)", min_value=0.0, max_value=200.0, value=0.0, step=0.5)
+        
+    b_notes = st.text_input("狀態備註 (可選)", "", placeholder="例如：晨起空腹測量、水分補充充足")
+
+    if st.button("💾 儲存身體數據", type="primary"):
+        # 檢查當天是否已有資料，有則覆蓋，無則新增
+        b_date_str = str(b_date)
+        existing_index = next((index for (index, d) in enumerate(st.session_state["body_logs"]) if d["date"] == b_date_str), None)
+        
+        new_body_log = {
+            "date": b_date_str,
+            "weight": body_weight,
+            "body_fat": body_fat if body_fat > 0 else None,
+            "muscle_mass": muscle_mass if muscle_mass > 0 else None,
+            "waistline": waistline if waistline > 0 else None,
+            "notes": b_notes
+        }
+        
+        if existing_index is not None:
+            st.session_state["body_logs"][existing_index] = new_body_log
+            st.toast(f"🔄 已更新 {b_date_str} 的身體數據", icon="📝")
+        else:
+            st.session_state["body_logs"].append(new_body_log)
+            # 按日期排序
+            st.session_state["body_logs"].sort(key=lambda x: x["date"])
+            st.toast(f"✅ 已成功儲存 {b_date_str} 的身體數據", icon="⚖️")
+            
+        save_data()
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 體重與體脂率變動圖表
+    if st.session_state["body_logs"]:
+        st.markdown('<div class="css-card">', unsafe_allow_html=True)
+        st.subheader("📉 體重與體脂趨勢")
+        df_body = pd.DataFrame(st.session_state["body_logs"])
+        
+        metric_option = st.radio("選擇要顯示的指標趨勢", ["體重 (kg)", "體脂肪率 (%)", "肌肉量 (kg)", "腰圍 (cm)"], horizontal=True)
+        
+        column_map = {
+            "體重 (kg)": "weight",
+            "體脂肪率 (%)": "body_fat",
+            "肌肉量 (kg)": "muscle_mass",
+            "腰圍 (cm)": "waistline"
+        }
+        target_col = column_map[metric_option]
+        
+        chart_data = df_body[["date", target_col]].dropna()
+        if not chart_data.empty:
+            st.line_chart(chart_data.set_index("date"))
+        else:
+            st.info(f"尚無足夠的 {metric_option} 數據可供繪圖。")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # 歷年身體數據表格
+        st.subheader("📋 身體紀錄列表")
+        df_body_display = df_body.rename(columns={
+            "date": "日期",
+            "weight": "體重(kg)",
+            "body_fat": "體脂率(%)",
+            "muscle_mass": "肌肉量(kg)",
+            "waistline": "腰圍(cm)",
+            "notes": "備註"
+        })
+        st.dataframe(df_body_display, use_container_width=True, hide_index=True)
+    else:
+        st.info("💡 目前尚無身體量測紀錄，輸入資料後即可追蹤長期變化曲線！")
+
+# ------------------------------------------
+# Tab 3: 歷史紀錄與清除資料
+# ------------------------------------------
+with tab3:
     st.subheader("📜 歷史訓練清單")
     if st.session_state["workout_logs"]:
         df = pd.DataFrame(st.session_state["workout_logs"])
@@ -450,19 +546,20 @@ with tab2:
         st.markdown("---")
         # 清除歷史紀錄功能
         with st.expander("⚠️ 危險區域：清除歷史紀錄"):
-            if st.button("🗑️ 確定刪除所有訓練資料"):
+            if st.button("🗑️ 確定刪除所有訓練與身體紀錄"):
                 st.session_state["workout_logs"] = []
                 st.session_state["finished_dates"] = set()
+                st.session_state["body_logs"] = []
                 save_data()
-                st.success("所有訓練資料已清空！")
+                st.success("所有紀錄已完全清空！")
                 st.rerun()
     else:
         st.info("💡 目前尚無訓練紀錄，快去「今日訓練」新增第一組吧！")
 
 # ------------------------------------------
-# Tab 3: 進度圖表
+# Tab 4: 進度圖表
 # ------------------------------------------
-with tab3:
+with tab4:
     st.subheader("📈 重量突破分析")
     if st.session_state["workout_logs"]:
         df = pd.DataFrame(st.session_state["workout_logs"])
@@ -477,9 +574,9 @@ with tab3:
         st.info("💡 尚未累積足夠數據，完成訓練後即可檢視趨勢圖！")
 
 # ------------------------------------------
-# Tab 4: 動作教學
+# Tab 5: 動作教學
 # ------------------------------------------
-with tab4:
+with tab5:
     st.subheader("📚 專業健身指南")
     
     col_tg, col_te = st.columns(2)
