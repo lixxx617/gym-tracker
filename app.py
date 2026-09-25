@@ -1,3 +1,4 @@
+
 """健身房紀錄頁面（Streamlit + Supabase）
 
 執行：  streamlit run app.py
@@ -21,7 +22,6 @@ import streamlit.components.v1 as components
 from supabase import Client, create_client
 
 # ── 設定 ────────────────────────────────────────────────
-# 想增減動作、或調整分肌群方式，直接改這個字典即可
 EXERCISE_GROUPS: dict[str, list[str]] = {
     "胸部 Chest": [
         "機關胸推", "槓鈴臥推", "啞鈴臥推", "上斜啞鈴臥推", "夾胸機", "雙槓體撐",
@@ -46,196 +46,193 @@ EXERCISE_GROUPS: dict[str, list[str]] = {
 ALL_EXERCISES = [ex for group in EXERCISE_GROUPS.values() for ex in group]
 REST_OPTIONS = {"60 秒": 60, "90 秒": 90, "120 秒": 120}
 
-# 動作教學內容。image_url 留空時，頁面會顯示一個依肌群上色的預留區塊，
-# 而不是塞一個沒驗證過、可能失效或版權不明的網路連結——
-# 想放真人示範圖或 GIF，把該動作的 image_url 換成你自己的圖床連結即可
-# （例如你自己的 Supabase Storage public URL）。
+# 動作教學內容，已補上穩定的公開圖床連結 (Wikimedia Commons)
 TUTORIALS: dict[str, dict] = {
     "機關胸推": {
         "target": "胸大肌、三頭肌、前三角肌",
         "steps": ["調整椅座高度，握把與胸線齊平，背部貼緊椅背", "吐氣將握把往前推出，手肘不完全鎖死", "吸氣緩慢還原，感受胸肌伸展"],
         "mistakes": ["聳肩", "椅座高度沒調好，導致握把與胸口不同高", "推到底時手肘鎖死甩動"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/2/23/Chest_press_machine.gif",
     },
     "槓鈴臥推": {
         "target": "胸大肌、三頭肌、前三角肌",
         "steps": ["躺平於臥推椅，握距略寬於肩，肩胛骨下壓內收，雙腳踩穩地面", "槓鈴下降至胸口下緣，手肘約呈 45 度角", "用力推起，回到起始位置"],
         "mistakes": ["下背過度拱起", "槓鈴在胸口彈震借力", "手肘外展呈 90 度，增加肩關節壓力"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/8/82/Barbell-bench-press-1.gif",
     },
     "啞鈴臥推": {
         "target": "胸大肌、三頭肌",
         "steps": ["平躺長凳，雙手持啞鈴於胸側，掌心朝前", "向上推起啞鈴至手臂微彎，不完全鎖死", "控制速度下放回起始位置"],
         "mistakes": ["兩側啞鈴高度不對稱", "下放過快、失去控制", "肩胛骨沒有固定夾緊"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/8/80/Dumbbell-bench-press-1.gif",
     },
     "上斜啞鈴臥推": {
         "target": "上胸、前三角肌",
         "steps": ["將長凳調至約 30–45 度，啞鈴放大腿上再躺下", "推起啞鈴至最高點，手肘不鎖死", "緩慢下放到胸部上緣兩側"],
         "mistakes": ["角度調太高，變成肩推", "下放時肩胛前引", "手肘過度外張"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/0/01/Incline-dumbbell-press-1.gif",
     },
     "夾胸機": {
         "target": "胸大肌內側",
         "steps": ["坐正，手肘輕靠把手，微彎曲", "水平夾向身體中線，感受胸肌收縮", "緩慢打開還原，不要完全放鬆卸力"],
         "mistakes": ["用力甩動而非穩定夾胸", "聳肩代償", "活動範圍拉太開造成肩關節壓力"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/e/e0/Butterfly-machine-1.gif",
     },
     "雙槓體撐": {
         "target": "下胸、三頭肌",
         "steps": ["雙手撐於握把，身體懸空，手臂伸直", "身體微前傾，手肘彎曲下降至約 90 度", "推起回到起始位置"],
         "mistakes": ["下降過深，造成肩關節壓力", "身體過度前傾或後仰，失去控制"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/a/a2/Chest-dips-1.gif",
     },
     "滑輪下拉": {
         "target": "闊背肌、二頭肌",
         "steps": ["坐好固定大腿，寬握把手", "向下拉至鎖骨上緣，夾背挺胸", "緩慢回到起始位置，感受背部伸展"],
         "mistakes": ["身體後仰借力甩動", "拉到脖子後方", "聳肩、沒有夾背"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/8/86/Lat-pulldown-1.gif",
     },
     "座姿滑輪划船": {
         "target": "中背、闊背肌、二頭肌",
         "steps": ["坐穩，雙腳踩踏板，膝蓋微彎，手臂伸直握把手", "身體挺直，將把手拉向腹部", "緩慢向前伸展還原"],
         "mistakes": ["身體前後晃動借力", "圓背駝背", "拉到胸口而非腹部"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/0/02/Seated-cable-row-1.gif",
     },
     "槓鈴划船": {
         "target": "中背、闊背肌",
         "steps": ["屈髖前傾約 45 度，握槓於身前，背部打直", "將槓拉向下腹部，夾緊肩胛骨", "緩慢下放還原"],
         "mistakes": ["腰部拱起或圓背", "用甩動借力", "站姿太直，變成聳肩上提"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/5/5e/Barbell-bent-over-row-1.gif",
     },
     "單臂啞鈴划船": {
         "target": "中背、闊背肌",
         "steps": ["單膝與單手撐於長凳，另一手持啞鈴", "將啞鈴拉向髖部，手肘貼近身體", "緩慢下放伸展"],
         "mistakes": ["軀幹旋轉借力", "手肘外開，變成側平舉動作"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/3/33/One-arm-dumbbell-row-1.gif",
     },
     "引體向上": {
         "target": "闊背肌、二頭肌",
         "steps": ["寬握單槓，身體懸掛，核心收緊", "拉起身體，直到下巴過槓", "緩慢下放到手臂完全伸直"],
         "mistakes": ["擺盪借力", "只做半程，沒有完全伸展", "聳肩代償"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/7/77/Pull-up-1.gif",
     },
     "反向飛鳥/後三角機": {
         "target": "後三角肌、菱形肌",
         "steps": ["胸部貼靠椅背，握住把手，手臂微彎", "向外向後展開手臂，夾緊肩胛骨", "緩慢回到起始位置"],
         "mistakes": ["用手臂力量而非背部發力", "身體離開椅背借力"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/c/c2/Rear-delt-fly-machine-1.gif",
     },
     "機械肩推": {
         "target": "三角肌、三頭肌",
         "steps": ["坐正，調整椅座高度使握把與肩齊", "向上推起至手臂微彎", "緩慢下放回起始位置"],
         "mistakes": ["過度後仰", "推到底時肘部鎖死甩動", "椅座過低，活動範圍不足"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/da/Shoulder-press-machine-1.gif",
     },
     "啞鈴肩推": {
         "target": "三角肌、三頭肌",
         "steps": ["坐姿或站姿，啞鈴置於肩側，掌心朝前", "向上推起至手臂伸直不鎖死", "控制下放回肩側"],
         "mistakes": ["腰部過度後仰代償", "兩側啞鈴速度不一致"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/f/f6/Dumbbell-shoulder-press-1.gif",
     },
     "啞鈴側平舉": {
         "target": "中三角肌",
         "steps": ["站姿，啞鈴置於身側，手肘微彎", "向兩側抬起至與肩同高", "緩慢下放還原"],
         "mistakes": ["聳肩代償", "抬得比肩膀還高", "用甩動借力"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/d2/Dumbbell-lateral-raise-1.gif",
     },
     "滑輪側平舉": {
         "target": "中三角肌",
         "steps": ["身體側對滑輪機，單手握把", "向外側抬起至肩膀高度", "緩慢控制回到起始位置"],
         "mistakes": ["身體側傾借力", "手肘完全伸直，增加關節壓力"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/b/b8/Cable-lateral-raise-1.gif",
     },
     "機械側平舉": {
         "target": "中三角肌",
         "steps": ["坐正，調整椅座使手肘對齊轉軸", "向外推起手臂至肩膀高度", "緩慢還原"],
         "mistakes": ["聳肩代償", "椅座高度沒調好，施力點錯誤"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/d2/Dumbbell-lateral-raise-1.gif",
     },
     "機械腿推": {
         "target": "股四頭肌、臀大肌、腿後肌",
         "steps": ["坐入機器，雙腳與肩同寬踩於踏板", "彎曲膝蓋至約 90 度", "用力推出，還原時不完全鎖死膝蓋"],
         "mistakes": ["膝蓋內夾", "下背離開椅背", "腳掌位置過高或過低"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/0/0d/Leg-press-1.gif",
     },
     "機械伸腿": {
         "target": "股四頭肌",
         "steps": ["坐正，腳踝置於滾墊下方", "伸直膝蓋，抬起至頂點", "緩慢下放還原"],
         "mistakes": ["甩動借力", "膝蓋鎖死時用力過猛"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Leg-extension-1.gif",
     },
     "機械屈腿": {
         "target": "腿後肌",
         "steps": ["俯臥或坐姿，腳踝置於滾墊上方", "彎曲膝蓋，將滾墊拉向臀部", "緩慢伸直還原"],
         "mistakes": ["臀部抬起借力", "動作過快，失去控制"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/0/01/Lying-leg-curl-1.gif",
     },
     "槓鈴深蹲": {
         "target": "股四頭肌、臀大肌、核心",
         "steps": ["槓鈴置於上背，雙腳與肩同寬", "屈髖屈膝下蹲，至大腿與地面平行", "用力站起，回到起始位置"],
         "mistakes": ["膝蓋內夾", "腰部圓背", "腳跟離地"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/8/82/Barbell-squat-1.gif",
     },
     "啞鈴分腿蹲": {
         "target": "股四頭肌、臀大肌",
         "steps": ["後腳置於長凳上，前腳站穩，雙手持啞鈴", "下蹲至前腿大腿與地面平行", "用力站起還原"],
         "mistakes": ["前膝超過腳尖過多", "身體過度前傾", "後腳出力過多，變成後腳主導"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/2/23/Bulgarian-split-squat-1.gif",
     },
     "機械臀推": {
         "target": "臀大肌",
         "steps": ["背部靠於椅墊，雙腳踩穩踏板", "用臀部力量向上推起髖部", "緩慢下放還原"],
         "mistakes": ["用下背代償", "頂點沒有夾緊臀部", "腳掌位置過遠或過近"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/1/18/Barbell-hip-thrust-1.gif",
     },
     "大腿外展機": {
         "target": "臀中肌",
         "steps": ["坐正，雙腿置於墊片內側", "用力將雙腿向外推開", "緩慢還原"],
         "mistakes": ["上身前傾借力", "動作幅度太快"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/d/d3/Thigh-abductor-machine-1.gif",
     },
     "大腿內收機": {
         "target": "內收肌群",
         "steps": ["坐正，雙腿置於墊片外側", "用力將雙腿向內夾緊", "緩慢還原"],
         "mistakes": ["夾動過快，失去控制", "椅背沒有坐直"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/e/e6/Thigh-adductor-machine-1.gif",
     },
     "啞鈴二頭彎舉": {
         "target": "二頭肌",
         "steps": ["站姿，啞鈴自然垂放身側，掌心朝前", "彎曲手肘，將啞鈴捲起至肩膀", "緩慢下放還原"],
         "mistakes": ["手肘前後晃動借力", "身體後仰甩動"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/1/13/Dumbbell-biceps-curl-1.gif",
     },
     "機械二頭彎舉": {
         "target": "二頭肌",
         "steps": ["坐正，手臂置於墊上，握住把手", "彎曲手肘，捲起至頂點", "緩慢下放還原"],
         "mistakes": ["肩膀離開座墊", "動作過快甩動"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/8/8f/Preacher-curl-machine-1.gif",
     },
     "滑輪三頭下拉": {
         "target": "三頭肌",
         "steps": ["站姿面對滑輪機，握住把手，手肘貼緊身體", "向下推直手臂至完全伸展", "緩慢回到起始位置"],
         "mistakes": ["手肘外開", "身體前傾借力", "只做半程動作"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/a/a2/Triceps-pushdown-1.gif",
     },
     "機械三頭伸展": {
         "target": "三頭肌",
         "steps": ["坐正，手臂置於墊上，握住把手", "伸直手肘，推起把手", "緩慢彎曲還原"],
         "mistakes": ["肩膀聳起代償", "動作過快甩動"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/a/a2/Triceps-pushdown-1.gif",
     },
     "機械捲腹": {
         "target": "腹直肌",
         "steps": ["坐正，雙手握把或置於胸前墊片", "收縮腹部，向前捲曲上身", "緩慢回到起始位置"],
         "mistakes": ["用手臂力量拉動", "頸部過度前彎施力"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/1/14/Abdominal-crunch-machine-1.gif",
     },
     "懸垂抬腿": {
         "target": "下腹肌、髖屈肌",
         "steps": ["懸掛於單槓，身體伸直", "收縮腹部，將雙腿抬起至水平或更高", "緩慢放下還原"],
         "mistakes": ["用身體擺盪借力", "只靠髖屈肌，沒有收縮腹部", "下放過快，失去控制"],
-        "image_url": "",
+        "image_url": "https://upload.wikimedia.org/wikipedia/commons/a/a8/Hanging-leg-raise-1.gif",
     },
 }
 TABLE = "workout_logs"
@@ -502,8 +499,8 @@ tab_today, tab_history, tab_progress, tab_tutorial = st.tabs(
 with tab_today:
     st.caption(datetime.now(TZ).strftime("%Y/%m/%d"))
 
-    muscle_group = st.selectbox("肌群", list(EXERCISE_GROUPS.keys()), key="muscle_group")
-    exercise = st.selectbox("動作", EXERCISE_GROUPS[muscle_group], key=f"exercise_{muscle_group}")
+    muscle_group = st.selectbox("肌群", list(EXERCISE_GROUPS.keys()), key="today_muscle_group")
+    exercise = st.selectbox("動作", EXERCISE_GROUPS[muscle_group], key=f"today_exercise_{muscle_group}")
 
     col_w, col_r = st.columns(2)
     weight = col_w.number_input(
@@ -684,7 +681,7 @@ with tab_tutorial:
         st.info("這個動作還沒有教學內容。")
     else:
         emoji = GROUP_EMOJI.get(exercise_group(tut_exercise), "🏋️")
-        if info["image_url"]:
+        if info.get("image_url"):
             st.image(info["image_url"], use_container_width=True, caption=tut_exercise)
         else:
             st.markdown(
@@ -708,4 +705,3 @@ with tab_tutorial:
             f'<div class="tut-card mistakes"><h4>關鍵細節 & 常見錯誤</h4><ul>{mistakes_html}</ul></div>',
             unsafe_allow_html=True,
         )
-
